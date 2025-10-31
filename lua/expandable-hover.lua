@@ -13,14 +13,23 @@ local function printTable(tbl)
   io.write '}'
 end
 
--- Creates a buffer, sets its name to its `URI`, and `:edit`s the name (thus opening the uri)
---
 ---@param uri lsp.URI
 ---@return integer bufNum
 local function createAndFillBufferByUri(uri)
+  local currentBufId = vim.api.nvim_get_current_buf()
+  local absolutePath = string.gsub(string.format('%s', uri), 'file://', '') -- Turn `uri` into a raw string, then remove 'file://'
+  if vim.api.nvim_buf_get_name(0) == absolutePath then
+    return currentBufId
+  elseif vim.fn.bufexists(absolutePath) == 1 then
+    error 'buffer already exists!'
+  end
+
+  local fileContent = vim.fn.system { 'cat', string.gsub(absolutePath, 'file://', '') }
+  local lines = vim.split(fileContent, '\n')
+
   local bufNum = vim.api.nvim_create_buf(true, true)
-  vim.api.nvim_buf_set_name(bufNum, uri)
-  vim.api.nvim_buf_call(bufNum, vim.cmd.edit)
+  vim.api.nvim_buf_set_name(bufNum, absolutePath)
+  vim.api.nvim_buf_set_lines(bufNum, 0, -1, true, lines)
 
   return bufNum
 end
@@ -41,6 +50,8 @@ M.openCuteWindow = function(text, fileType)
 
   vim.api.nvim_set_option_value('filetype', fileType, { buf = tempBufId })
   vim.api.nvim_buf_set_lines(tempBufId, 0, -1, true, text)
+
+  local existingLspClients = vim.lsp.get_clients {}
   vim.lsp.buf_attach_client(tempBufId, 1) -- Tell the current LSP, it should look on this buffer too
 
   -- treesitter
@@ -93,11 +104,22 @@ M.callLspDefinition = function()
       return
     end
 
+    result = result ---@type lsp.LocationLink[] -- move this type somewhere else this is uglyyyyyyyyyyyy
     local uri = result[1].targetUri
-    printTable(result)
+    local targetRange = result[1].targetRange
 
     local newBufNum = createAndFillBufferByUri(uri)
+    local lines = vim.api.nvim_buf_get_lines(newBufNum, targetRange.start.line, targetRange['end'].line + 1, false)
+    M.openCuteWindow(lines, vim.api.nvim_get_option_value('filetype', {}))
+
+    -- Cleanup: removing newly created buffers
+    if newBufNum ~= vim.api.nvim_get_current_buf() then
+      vim.api.nvim_buf_delete(newBufNum, {})
+    end
   end)
 end
 
 return M
+
+-- TODO: M.openCuteWindow does not close un-focused buffers. leading to same-name buffers
+-- TODO: Instead of giving M.openCuteWindow the filetype, give it the original buffer ID, then it will get all clients for the original buffer, and allow us to continue doing more LSP requests
