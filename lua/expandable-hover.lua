@@ -13,6 +13,17 @@ local function printTable(tbl)
   io.write '}'
 end
 
+local function getMainBuf()
+  local callerBufId = vim.api.nvim_get_current_buf()
+  local isNotMainBuf, callersMainBufIdVar = pcall(vim.api.nvim_buf_get_var, callerBufId, 'mainBufId')
+
+  if isNotMainBuf then
+    return callersMainBufIdVar
+  else
+    return callerBufId
+  end
+end
+
 ---@param uri lsp.URI
 ---@return integer bufNum
 local function createAndFillBufferByUri(uri)
@@ -71,7 +82,9 @@ M.openCuteWindow = function(text, fileType)
 end
 
 M.callLspHover = function()
-  vim.lsp.buf_request(0, 'textDocument/hover', vim.lsp.util.make_position_params(0, 'utf-8'), function(err, result)
+  local mainBufId = getMainBuf()
+
+  vim.lsp.buf_request(mainBufId, 'textDocument/hover', vim.lsp.util.make_position_params(0, 'utf-8'), function(err, result)
     if err then
       print "Couldn't call textDocument/hover! :("
       printTable(err)
@@ -98,7 +111,9 @@ M.callLspHover = function()
 end
 
 M.callLspDefinition = function()
-  vim.lsp.buf_request(0, 'textDocument/definition', vim.lsp.util.make_position_params(0, 'utf-8'), function(err, result)
+  local mainBufId = getMainBuf()
+
+  vim.lsp.buf_request(mainBufId, 'textDocument/definition', vim.lsp.util.make_position_params(0, 'utf-8'), function(err, result)
     if err then
       printTable(err)
       return
@@ -123,3 +138,4 @@ return M
 
 -- TODO: M.openCuteWindow does not close un-focused buffers. leading to same-name buffers
 -- TODO: Instead of giving M.openCuteWindow the filetype, give it the original buffer ID, then it will get all clients for the original buffer, and allow us to continue doing more LSP requests
+-- TODO: temp buffer function
