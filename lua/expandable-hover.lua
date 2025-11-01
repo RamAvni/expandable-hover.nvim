@@ -29,9 +29,10 @@ end
 local function createAndFillBufferByUri(uri)
   local currentBufId = vim.api.nvim_get_current_buf()
   local absolutePath = string.gsub(string.format('%s', uri), 'file://', '') -- Turn `uri` into a raw string, then remove 'file://'
+  local name = string.format('expandable-hover: %s', absolutePath)
   if vim.api.nvim_buf_get_name(0) == absolutePath then
     return currentBufId
-  elseif vim.fn.bufexists(absolutePath) == 1 then
+  elseif vim.fn.bufexists(name) == 1 then
     error 'buffer already exists!'
   end
 
@@ -39,7 +40,7 @@ local function createAndFillBufferByUri(uri)
   local lines = vim.split(fileContent, '\n')
 
   local bufNum = vim.api.nvim_create_buf(true, true)
-  vim.api.nvim_buf_set_name(bufNum, absolutePath)
+  vim.api.nvim_buf_set_name(bufNum, name)
   vim.api.nvim_buf_set_lines(bufNum, 0, -1, true, lines)
 
   return bufNum
