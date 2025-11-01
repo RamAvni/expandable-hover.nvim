@@ -51,8 +51,10 @@ M.setup = function()
 end
 
 ---@param text string[]
----@param fileType string
-M.openCuteWindow = function(text, fileType)
+---@param mainBufId integer
+M.openCuteWindow = function(text, mainBufId)
+  local mainLspClients = vim.lsp.get_clients { bufnr = mainBufId }
+  local mainBufFileType = vim.api.nvim_get_option_value('filetype', { buf = mainBufId })
   -- Create a temporary buffer
   local tempBufId = vim.api.nvim_create_buf(true, true)
   if tempBufId == nil then
@@ -60,19 +62,22 @@ M.openCuteWindow = function(text, fileType)
     return
   end
 
-  vim.api.nvim_set_option_value('filetype', fileType, { buf = tempBufId })
+  vim.api.nvim_set_option_value('filetype', mainBufFileType, { buf = tempBufId })
+  vim.api.nvim_buf_set_var(tempBufId, 'mainBufId', mainBufId)
   vim.api.nvim_buf_set_lines(tempBufId, 0, -1, true, text)
 
-  local existingLspClients = vim.lsp.get_clients {}
-  vim.lsp.buf_attach_client(tempBufId, 1) -- Tell the current LSP, it should look on this buffer too
+  -- Attach LSPs to the new window-buffer
+  for _, lspClient in ipairs(mainLspClients) do
+    vim.lsp.buf_attach_client(tempBufId, lspClient.id)
+  end
 
   -- treesitter
   vim.treesitter.start(tempBufId)
 
   -- Open a window
-  vim.api.nvim_open_win(tempBufId, true, {
+  local tempWinId = vim.api.nvim_open_win(tempBufId, true, {
     title = '  Expandable Hover  ',
-    footer = string.format('  %s  ', fileType),
+    footer = string.format('  %s  ', mainBufFileType),
     footer_pos = 'right',
     border = 'double',
     height = 8,
@@ -117,7 +122,7 @@ M.callLspHover = function()
       ::continue::
     end
 
-    M.openCuteWindow(lspHoverResult, fileType)
+    M.openCuteWindow(lspHoverResult, mainBufId)
   end)
 end
 
@@ -139,7 +144,7 @@ M.callLspDefinition = function()
 
     local newBufNum = createAndFillBufferByUri(uri)
     local lines = vim.api.nvim_buf_get_lines(newBufNum, targetRange.start.line, targetRange['end'].line + 1, false)
-    M.openCuteWindow(lines, vim.api.nvim_get_option_value('filetype', {}))
+    M.openCuteWindow(lines, mainBufId)
 
     -- Cleanup: removing newly created buffers
     if newBufNum ~= vim.api.nvim_get_current_buf() then
@@ -151,5 +156,4 @@ end
 return M
 
 -- TODO: M.openCuteWindow does not close un-focused buffers. leading to same-name buffers
--- TODO: Instead of giving M.openCuteWindow the filetype, give it the original buffer ID, then it will get all clients for the original buffer, and allow us to continue doing more LSP requests
 -- TODO: temp buffer function
