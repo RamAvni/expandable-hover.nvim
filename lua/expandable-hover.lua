@@ -80,6 +80,16 @@ M.openCuteWindow = function(text, fileType)
     bufpos = { 1, 1 },
     relative = 'cursor',
   })
+
+  -- -- Cleanup
+  -- vim.api.nvim_create_autocmd({ 'bufEnter' }, {
+  --   buffer = mainBufId,
+  --   once = true,
+  --   callback = function()
+  --     vim.api.nvim_win_close(tempWinId, false)
+  --     vim.api.nvim_buf_delete(tempBufId, {})
+  --   end,
+  -- })
 end
 
 M.callLspHover = function()
@@ -117,6 +127,9 @@ M.callLspDefinition = function()
   vim.lsp.buf_request(mainBufId, 'textDocument/definition', vim.lsp.util.make_position_params(0, 'utf-8'), function(err, result)
     if err then
       printTable(err)
+      return
+    elseif result == nil then
+      print 'No Info'
       return
     end
 
